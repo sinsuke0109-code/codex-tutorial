@@ -1,0 +1,16 @@
+{
+  "name": "codex-tutorial",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Step by step tutorial project for learning Codex features.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node exercises/task-cli.js",
+    "test": "node --test tests/*.test.js",
+    "check": "npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
