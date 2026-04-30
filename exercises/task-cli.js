@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_FILE = path.join(process.cwd(), '.tasks.json');
+const DEFAULT_PRIORITY = 'medium';
+const VALID_PRIORITIES = ['low', 'medium', 'high'];
 
 class TaskStore {
   constructor(filePath = DEFAULT_FILE) {
@@ -29,12 +31,14 @@ class TaskStore {
     fs.writeFileSync(this.filePath, `${JSON.stringify(tasks, null, 2)}\n`);
   }
 
-  add(title) {
+  add(title, priority = DEFAULT_PRIORITY) {
     const tasks = this.load();
+    const taskPriority = parsePriority(priority);
     const nextId = tasks.reduce((max, task) => Math.max(max, task.id), 0) + 1;
     const task = {
       id: nextId,
       title,
+      priority: taskPriority,
       done: false,
       createdAt: new Date().toISOString()
     };
@@ -49,7 +53,7 @@ class TaskStore {
     const task = tasks.find((item) => item.id === id);
 
     if (!task) {
-      throw new Error(`Task ${id} was not found.`);
+      throw new Error(`タスク ${id} が見つかりません。`);
     }
 
     task.done = true;
@@ -65,17 +69,18 @@ class TaskStore {
 
 function formatTask(task) {
   const status = task.done ? 'x' : ' ';
-  return `${task.id}. [${status}] ${task.title}`;
+  const priority = task.priority || DEFAULT_PRIORITY;
+  return `${task.id}. [${status}] [${priority}] ${task.title}`;
 }
 
 function printHelp() {
   return [
-    'Usage:',
-    '  node exercises/task-cli.js add <title>',
-    '  node exercises/task-cli.js list',
+    '使い方:',
+    '  node exercises/task-cli.js add <title> [--priority low|medium|high]',
+    '  node exercises/task-cli.js list [--status open|done]',
     '  node exercises/task-cli.js done <id>',
     '',
-    'Examples:',
+    '例:',
     '  node exercises/task-cli.js add "Read TUTORIAL.md"',
     '  node exercises/task-cli.js done 1'
   ].join('\n');
@@ -84,9 +89,33 @@ function printHelp() {
 function parseId(value) {
   const id = Number.parseInt(value, 10);
   if (!Number.isInteger(id) || id <= 0) {
-    throw new Error('Please provide a positive numeric task id.');
+    throw new Error('正の数値のタスク ID を指定してください。');
   }
   return id;
+}
+
+function parsePriority(value) {
+  if (!VALID_PRIORITIES.includes(value)) {
+    throw new Error('--priority には low、medium、high のいずれかを指定してください。');
+  }
+
+  return value;
+}
+
+function parseAddArgs(args) {
+  const priorityIndex = args.indexOf('--priority');
+  let priority = DEFAULT_PRIORITY;
+  const titleParts = [...args];
+
+  if (priorityIndex !== -1) {
+    priority = parsePriority(args[priorityIndex + 1]);
+    titleParts.splice(priorityIndex, 2);
+  }
+
+  return {
+    title: titleParts.join(' ').trim(),
+    priority
+  };
 }
 
 function parseStatusFilter(args) {
@@ -97,7 +126,7 @@ function parseStatusFilter(args) {
 
   const status = args[statusIndex + 1];
   if (status !== 'open' && status !== 'done') {
-    throw new Error('Please provide --status open or --status done.');
+    throw new Error('--status には open または done を指定してください。');
   }
 
   return status;
@@ -126,12 +155,12 @@ function runCli(argv, options = {}) {
   }
 
   if (command === 'add') {
-    const title = argv.slice(3).join(' ').trim();
+    const { title, priority } = parseAddArgs(argv.slice(3));
     if (!title) {
-      throw new Error('Please provide a task title.');
+      throw new Error('タスクのタイトルを指定してください。');
     }
-    const task = store.add(title);
-    output.push(`Added task ${task.id}: ${task.title}`);
+    const task = store.add(title, priority);
+    output.push(`タスク ${task.id} を追加しました: ${task.title}`);
     return output.join('\n');
   }
 
@@ -149,11 +178,11 @@ function runCli(argv, options = {}) {
   if (command === 'done') {
     const id = parseId(argv[3]);
     const task = store.markDone(id);
-    output.push(`Completed task ${task.id}: ${task.title}`);
+    output.push(`タスク ${task.id} を完了しました: ${task.title}`);
     return output.join('\n');
   }
 
-  throw new Error(`Unknown command: ${command}`);
+  throw new Error(`不明なコマンドです: ${command}`);
 }
 
 if (require.main === module) {
@@ -166,10 +195,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DEFAULT_PRIORITY,
   TaskStore,
   filterTasksByStatus,
   formatTask,
+  parseAddArgs,
   parseId,
+  parsePriority,
   parseStatusFilter,
   printHelp,
   runCli
